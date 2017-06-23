@@ -140,17 +140,19 @@ func VerifyOnpremInstall(f *framework.T) {
 			By("navigating to a site and reading endpoints")
 			site := sitemodel.Open(f.Page, domainName)
 			endpoints := site.GetEndpoints()
-			Expect(len(endpoints)).To(BeNumerically(">", 0), "expected at least one application endpoint")
+			if len(endpoints) > 0 {
+				Expect(len(endpoints)).To(BeNumerically(">", 0), "expected at least one application endpoint")
 
-			By("using local application endpoint")
-			serviceLogin := &framework.ServiceLogin{Username: login.Username, Password: login.Password}
-			siteEntryURL := endpoints[0]
-			// For terraform, use public install node address
-			// terraform nodes are provisioned only with a single private network interface
-			if ctx.Provisioner == "terraform" {
-				siteEntryURL = fmt.Sprintf("https://%v:%v", installNode.Addr(), defaults.GravityHTTPPort)
+				By("using local application endpoint")
+				serviceLogin := &framework.ServiceLogin{Username: login.Username, Password: login.Password}
+				siteEntryURL := endpoints[0]
+				// For terraform, use public install node address
+				// terraform nodes are provisioned only with a single private network interface
+				if ctx.Provisioner == "terraform" {
+					siteEntryURL = fmt.Sprintf("https://%v:%v", installNode.Addr(), defaults.GravityHTTPPort)
+				}
+				framework.UpdateSiteEntry(siteEntryURL, login, serviceLogin)
 			}
-			framework.UpdateSiteEntry(siteEntryURL, login, serviceLogin)
 		}
 
 		shouldNavigateToSite := func() {
