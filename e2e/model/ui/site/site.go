@@ -11,7 +11,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	web "github.com/sclevine/agouti"
-	. "github.com/sclevine/agouti/matchers"
 )
 
 type Site struct {
@@ -65,7 +64,7 @@ func (s *Site) GetEndpoints() (endpoints []string) {
 		for( var i = 0; i < endpoints.length; i ++){
 			var addressess = endpoints[i].addresses || []
 			addressess.forEach( a => urls.push(a))
-		}            
+		}
 		return urls; `
 
 	Expect(s.page.RunScript(scriptTemplate, nil, &endpoints)).To(Succeed())
@@ -81,7 +80,6 @@ func (s *Site) GetEndpoints() (endpoints []string) {
 
 func VerifySiteNavigation(page *web.Page, URL string) {
 	Expect(page.Navigate(URL)).To(Succeed())
-	Eventually(page.FindByClass("grv-site"), defaults.ElementTimeout).Should(BeFound(), "waiting for site to be ready")
 	ui.PauseForComponentJs()
 }
 
