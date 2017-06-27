@@ -4,8 +4,7 @@
 1. Separate infrastructure setup from test runs
 2. Organize configuration parameters by infra, provider, and provisioners
 3. Introduce a structure for defining new test parameters if needed.
-5. Evaluate test requirements and validation before running tests. Make it dynamic, so only targeted tests will be validated.
-fd
+5. Evaluate test requirements and validate before running tests. Make it dynamic, so only targeted tests will be validated.
 6. Allow nested tests to reuse parent parameters.
 
 Example:
