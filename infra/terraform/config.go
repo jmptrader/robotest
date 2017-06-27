@@ -43,7 +43,7 @@ func (c Config) SSHConfig() (user, keypath string) {
 
 type Config struct {
 	infra.Config
-
+	StateDir string
 	// DeployTo defines cloud to deploy to
 	CloudProvider string `validate:"required,eq=aws|eq=azure"`
 	// AWS defines AWS connection parameters

@@ -3,7 +3,6 @@ package bandwagon
 import (
 	"strings"
 
-	"github.com/gravitational/robotest/e2e/framework"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
 	"github.com/gravitational/robotest/e2e/uimodel/utils"
 
@@ -18,6 +17,13 @@ type Bandwagon struct {
 	page *web.Page
 }
 
+type BandwagonForm struct {
+	Organization string `yaml:"organization"  `
+	Password     string `yaml:"password" validate:"required"`
+	Username     string `yaml:"username" validate:"required"`
+	RemoteAccess bool   `yaml:"remote_access" `
+}
+
 // Open navigates to bandwagon URL and returns its ui model
 func Open(page *web.Page, domainName string) Bandwagon {
 	url := utils.GetSiteURL(page, domainName)
@@ -28,25 +34,25 @@ func Open(page *web.Page, domainName string) Bandwagon {
 }
 
 // SubmitForm submits bandwagon form
-func (b *Bandwagon) SubmitForm(config framework.BandwagonConfig) {
+func (b *Bandwagon) SubmitForm(form BandwagonForm) {
 	log.Infof("trying to submit bandwagon form")
-	log.Infof("entering email: %s", config.Email)
-	Expect(b.page.FindByName("email").Fill(config.Email)).To(Succeed(), "should enter email")
+	log.Infof("entering email: %s", form.Username)
+	Expect(b.page.FindByName("email").Fill(form.Username)).To(Succeed(), "should enter email")
 	count, _ := b.page.FindByName("name").Count()
 	if count > 0 {
-		log.Infof("entering username: %s", config.Username)
-		Expect(b.page.FindByName("name").Fill(config.Username)).To(Succeed(), "should enter username")
+		log.Infof("entering username: %s", form.Username)
+		Expect(b.page.FindByName("name").Fill(form.Username)).To(Succeed(), "should enter username")
 	}
 
-	log.Infof("entering password: %s", config.Password)
-	Expect(b.page.FindByName("password").Fill(config.Password)).To(Succeed(), "should enter password")
-	Expect(b.page.FindByName("passwordConfirmed").Fill(config.Password)).
+	log.Infof("entering password: %s", form.Password)
+	Expect(b.page.FindByName("password").Fill(form.Password)).To(Succeed(), "should enter password")
+	Expect(b.page.FindByName("passwordConfirmed").Fill(form.Password)).
 		To(Succeed(), "should re-enter password")
 
 	log.Infof("specifying remote access")
 	utils.SelectRadio(b.page, ".my-page-section .grv-control-radio", func(value string) bool {
 		prefix := "Disable remote"
-		if config.RemoteAccess {
+		if form.RemoteAccess {
 			prefix = "Enable remote"
 		}
 		return strings.HasPrefix(value, prefix)

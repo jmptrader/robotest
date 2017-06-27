@@ -2,10 +2,11 @@ package utils
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
-	"github.com/gravitational/robotest/e2e/framework"
+	"github.com/gravitational/robotest/e2e/runtime"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
 
 	. "github.com/onsi/gomega"
@@ -45,7 +46,7 @@ func IsFound(page *web.Page, className string) bool {
 func FormatUrl(page *web.Page, prefix string) string {
 	url, err := page.URL()
 	Expect(err).NotTo(HaveOccurred())
-	return framework.URLPathFromString(url, prefix)
+	return URLPathFromString(url, prefix)
 }
 
 // GetSiteURL returns cluster page URL
@@ -99,7 +100,7 @@ func SetDropdownValue(page *web.Page, classPath string, value string) {
 		}
 	}
 
-	framework.Failf("failed to select value %q in dropdown %q", value, classPath)
+	runtime.Failf("failed to select value %q in dropdown %q", value, classPath)
 }
 
 // SetDropdownValue2 sets a value to dropdown element
@@ -134,7 +135,7 @@ func SetDropdownValue2(page *web.Page, rootSelector, buttonSelector, value strin
 		}
 	}
 
-	framework.Failf("failed to select value %q in dropdown %q", value, rootSelector)
+	runtime.Failf("failed to select value %q in dropdown %q", value, rootSelector)
 }
 
 // SelectRadio sets a value to select element
@@ -163,7 +164,41 @@ func SelectRadio(page *web.Page, selector string, matches valueMatcher) {
 		}
 	}
 
-	framework.Failf("failed to select control in %q", selector)
+	runtime.Failf("failed to select control in %q", selector)
+}
+
+func ParseURL(path string, message string) *url.URL {
+	if message == "" {
+		message = "should be valid URL"
+	}
+	url, err := url.Parse(path)
+	Expect(len(path)).To(BeNumerically(">", 0), message)
+	Expect(err).NotTo(HaveOccurred(), message)
+	return url
+}
+
+func ExtractBaseURL(path string) string {
+	url := ParseURL(path, "")
+	return url.Host
+}
+
+func MakeClusterInstallURL(baseURL string, clusterName string) string {
+	url := ExtractBaseURL(baseURL)
+	return fmt.Sprintf("%v/web/installer/site/%v/", url, clusterName)
+}
+
+func MakeClusterURL(baseURL string, clusterName string) string {
+	url := ExtractBaseURL(baseURL)
+	return fmt.Sprintf("%v/web/site/%v/", url, clusterName)
+}
+
+// URLPathFromString returns a new URL with the specified URL urlS using path as a custom URL path
+func URLPathFromString(urlS string, path string) string {
+	url, err := url.Parse(urlS)
+	Expect(err).NotTo(HaveOccurred())
+	url.RawQuery = ""
+	url.Path = path
+	return url.String()
 }
 
 // valueMatcher defines an interface to select a value

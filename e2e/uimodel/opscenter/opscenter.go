@@ -3,7 +3,6 @@ package opscenter
 import (
 	"fmt"
 
-	"github.com/gravitational/robotest/e2e/framework"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
 	"github.com/gravitational/robotest/e2e/uimodel/utils"
 
@@ -32,7 +31,7 @@ func Open(page *web.Page) OpsCenter {
 }
 
 // DeleteSite deletes cluster by its name
-func (o *OpsCenter) DeleteSite(domainName string) {
+func (o *OpsCenter) DeleteSite(domainName string, awsAccessKey string, awsSecrenKey string) {
 	log.Infof("selecting a site to delete")
 	deploymentIndex := getDeploymentIndex(o.page, domainName)
 	Expect(deploymentIndex).To(BeNumerically(">=", 0), "expected to find a valid deployment index")
@@ -43,11 +42,11 @@ func (o *OpsCenter) DeleteSite(domainName string) {
 	count, _ := elems.Count()
 	if count > 0 {
 		Expect(elems).To(BeFound(), "expected to find an input field for AWS access key")
-		Expect(elems.SendKeys(framework.TestContext.AWS.AccessKey)).To(Succeed(), "expected to input AWS access key")
+		Expect(elems.SendKeys(awsAccessKey)).To(Succeed(), "expected to input AWS access key")
 
 		elems = o.page.FindByName("aws_secret_key")
 		Expect(elems).To(BeFound(), "expected to find an input field for AWS secret key")
-		Expect(elems.SendKeys(framework.TestContext.AWS.SecretKey)).To(Succeed(), "expected to input AWS secret key")
+		Expect(elems.SendKeys(awsSecrenKey)).To(Succeed(), "expected to input AWS secret key")
 	}
 
 	log.Infof("confirming cluster name")

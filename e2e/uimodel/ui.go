@@ -1,6 +1,7 @@
 package uimodel
 
 import (
+	"github.com/gravitational/robotest/e2e/runtime/configs"
 	"github.com/gravitational/robotest/e2e/uimodel/bandwagon"
 	"github.com/gravitational/robotest/e2e/uimodel/installer"
 	"github.com/gravitational/robotest/e2e/uimodel/opscenter"
@@ -16,9 +17,9 @@ type UI struct {
 }
 
 // InitWithUser navigates to given URL and ensures signed-in user.
-func InitWithUser(page *web.Page, URL string) UI {
+func InitWithUser(page *web.Page, URL string, login configs.Login) UI {
 	ui := UI{page: page}
-	user.EnsureUserAt(page, URL)
+	user.EnsureUserAt(page, URL, login)
 	return ui
 }
 

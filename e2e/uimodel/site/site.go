@@ -1,11 +1,8 @@
 package site
 
 import (
-	"github.com/gravitational/robotest/e2e/framework"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
-	"github.com/gravitational/robotest/e2e/uimodel/user"
 	"github.com/gravitational/robotest/e2e/uimodel/utils"
-	"github.com/gravitational/trace"
 
 	log "github.com/Sirupsen/logrus"
 	. "github.com/onsi/gomega"
@@ -48,7 +45,7 @@ func (s *Site) GoToServers() ServerPage {
 }
 
 // UpdateWithLatestVersion updates this cluster with the new version
-func (s *Site) UpdateWithLatestVersion() {
+/*func (s *Site) UpdateWithLatestVersion() {
 	log.Infof("looking for available versions")
 	appPage := s.GoToIndex()
 	allNewVersions := appPage.GetNewVersions()
@@ -81,7 +78,7 @@ func (s *Site) UpdateWithLatestVersion() {
 	curVer := appPage.GetCurrentVersion()
 	Expect(curVer.Version).To(BeEquivalentTo(newVersion.Version), "should display the new version")
 }
-
+*/
 // GetEndpoints returns cluster endpoints
 func (s *Site) GetEndpoints() (endpoints []string) {
 	const scriptTemplate = `

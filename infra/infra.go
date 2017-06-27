@@ -7,41 +7,21 @@ import (
 	"os"
 	"sync"
 
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/robotest/lib/loc"
 	"github.com/gravitational/robotest/lib/ssh"
 	"github.com/gravitational/robotest/lib/wait"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	log "github.com/Sirupsen/logrus"
 )
 
-// New creates a new cluster from the specified config and an optional
-// provisioner.
-// If no provisioner is specified, automatic provisioning is assumed
-func New(config Config, opsCenterURL string, provisioner Provisioner) (Infra, error) {
-	return &autoCluster{
-		opsCenterURL: opsCenterURL,
-		provisioner:  provisioner,
-	}, nil
-}
+type ProvisionerType string
 
-// NewWizard creates a new cluster using an installer tarball (which
-// is assumed to be part of the configuration).
-// It provisions a cluster, picks an installer node and starts
-// a local wizard process.
-// Returns the reference to the created infrastructure and the application package
-// the wizard is installing
-func NewWizard(config Config, provisioner Provisioner, installer Node) (Infra, *loc.Locator, error) {
-	cluster, err := startWizard(provisioner, installer)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+const (
+	ProvisionerTypeTerraform ProvisionerType = "terraform"
+	ProvisionerTypeVagrant   ProvisionerType = "vagrant"
+)
 
-	cluster.config = config
-	return cluster, &cluster.application, nil
-}
 
 // Infra describes the infrastructure as used in tests.
 //
@@ -52,7 +32,8 @@ type Infra interface {
 	// OpsCenterURL returns the address of the Ops Center this infrastructure describes.
 	// This can be an existing Ops Center or the one created using the provided provisioner
 	// running the wizard
-	OpsCenterURL() string
+	GetOpsCenterURL() string
+	SetOpsCenterURL(string)
 	// Close releases resources
 	Close() error
 	// Destroy destroys the cluster (e.g. deprovisions nodes, etc.)
@@ -63,6 +44,9 @@ type Infra interface {
 	Provisioner() Provisioner
 	// Config returns a configuration this infrastructure object was created with
 	Config() Config
+	GetWizardURL() string
+	InitWithState(state InfraState) error
+	InitWithWizard() error
 }
 
 // Provisioner defines a means of creating a cluster from scratch and managing the nodes.
@@ -105,6 +89,8 @@ type Provisioner interface {
 	// StateDir returns the state directory this provisioner is using
 	// State returns the state of this provisioner
 	State() ProvisionerState
+	Type() ProvisionerType
+	UpdateWithState(state ProvisionerState)
 }
 
 // NodePool manages node allocation/release for a provisioner

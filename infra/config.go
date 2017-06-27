@@ -14,17 +14,24 @@ type Config struct {
 	ClusterName string `json:"cluster_name" `
 }
 
+type InfraState struct {
+	Name             string           `yaml:"name"`
+	OpsCenterURL     string           `yaml:"opscenter_url"`
+	WizardURL        string           `yaml:"wizard_url"`
+	ProvisionerState ProvisionerState `yaml:"provisioner"`
+}
+
 // ProvisionerState defines the state configuration for a cluster
 // provisioned with a specific provisioner
 type ProvisionerState struct {
 	// Dir defines the location where provisioner stores state
-	Dir string `json:"state_dir"`
+	Dir string `yaml:"state_dir" json:"state_dir"`
 	// InstallerAddr is the address of the installer node
-	InstallerAddr string `json:"installer_addr,omitempty"`
+	InstallerAddr string `yaml:"installer_addr" json:"installer_addr,omitempty"`
 	// Nodes is a list of all nodes in the cluster
-	Nodes []StateNode `json:"nodes"`
+	Nodes []StateNode `yaml:"nodes" json:"nodes"`
 	// Allocated defines the allocated subset
-	Allocated []string `json:"allocated_nodes"`
+	Allocated []string `yaml:"allocated_nodes" json:"allocated_nodes"`
 }
 
 // StateNode describes a single cluster node

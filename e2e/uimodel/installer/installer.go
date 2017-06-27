@@ -3,8 +3,9 @@ package installer
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"github.com/gravitational/robotest/e2e/framework"
+	"github.com/gravitational/robotest/e2e/runtime"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
 	"github.com/gravitational/robotest/e2e/uimodel/utils"
 
@@ -13,6 +14,17 @@ import (
 	web "github.com/sclevine/agouti"
 	. "github.com/sclevine/agouti/matchers"
 )
+
+type AWSIstallFormCfgType struct {
+	ClusterName string
+	License     string
+	AccessKey   string
+	SecretKey   string
+	FlavorLabel string
+	Region      string `yaml:"region" validate:"required"`
+	KeyPair     string `yaml:"key_pair" validate:"required"`
+	VPC         string `yaml:"vpc"`
+}
 
 // Installer is installer ui model
 type Installer struct {
@@ -42,16 +54,15 @@ func (i *Installer) ProcessLicenseStepIfRequired(license string) {
 }
 
 // InitAWSInstallation initilizes cluster install operation using AWS
-func (i *Installer) InitAWSInstallation(domainName string) {
+func (i *Installer) InitAWSInstallation(formCfg AWSIstallFormCfgType) {
 	log.Infof("trying to initialize AWS install operation")
 	Expect(i.IsCreateSiteStep()).To(BeTrue())
-	specifyDomainName(i.page, domainName)
+	specifyDomainName(i.page, formCfg.ClusterName)
 
 	log.Infof("providing AWS keys")
-	config := framework.TestContext.AWS
 	Expect(i.page.FindByClass("--aws").Click()).To(Succeed())
-	Expect(i.page.FindByName("aws_access_key").Fill(config.AccessKey)).To(Succeed())
-	Expect(i.page.FindByName("aws_secret_key").Fill(config.SecretKey)).To(Succeed())
+	Expect(i.page.FindByName("aws_access_key").Fill(formCfg.AccessKey)).To(Succeed())
+	Expect(i.page.FindByName("aws_secret_key").Fill(formCfg.SecretKey)).To(Succeed())
 	Expect(i.page.FindByClass("grv-installer-btn-new-site").Click()).To(Succeed())
 	Eventually(func() bool {
 		return utils.IsFound(i.page, ".grv-installer-aws-region") || i.IsWarningVisible()
@@ -61,13 +72,13 @@ func (i *Installer) InitAWSInstallation(domainName string) {
 	utils.PauseForComponentJs()
 
 	log.Infof("setting region")
-	utils.SetDropdownValue(i.page, "grv-installer-aws-region", config.Region)
+	utils.SetDropdownValue(i.page, "grv-installer-aws-region", formCfg.Region)
 
 	log.Infof("setting key pair")
-	utils.SetDropdownValue(i.page, "grv-installer-aws-key-pair", config.KeyPair)
+	utils.SetDropdownValue(i.page, "grv-installer-aws-key-pair", formCfg.KeyPair)
 
 	log.Infof("setting VPC")
-	utils.SetDropdownValue(i.page, "grv-installer-aws-vpc", config.VPC)
+	utils.SetDropdownValue(i.page, "grv-installer-aws-vpc", formCfg.VPC)
 	i.proceedToReqs()
 }
 
@@ -83,7 +94,7 @@ func (i *Installer) InitOnPremInstallation(domainName string) {
 }
 
 // PrepareOnPremNodes sets parameters for each found node
-func (i *Installer) PrepareOnPremNodes(dockerDevice string) {
+func (i *Installer) PrepareOnPremNodes(tc *runtime.TContext, dockerDevice string) {
 	onpremProfiles := i.GetOnPremProfiles()
 	Expect(len(onpremProfiles)).NotTo(Equal(0))
 	numInstallNodes := 0
@@ -92,7 +103,7 @@ func (i *Installer) PrepareOnPremNodes(dockerDevice string) {
 	}
 
 	log.Infof("allocating %v nodes", numInstallNodes)
-	provisioner := framework.Cluster.Provisioner()
+	provisioner := tc.GetInfra().Provisioner()
 	Expect(provisioner).NotTo(BeNil(), "expected valid provisioner for onprem installation")
 	allocatedNodes, err := provisioner.NodePool().Allocate(numInstallNodes)
 	Expect(err).NotTo(HaveOccurred(), "expected to allocate node(s)")
@@ -103,7 +114,7 @@ func (i *Installer) PrepareOnPremNodes(dockerDevice string) {
 	index := 0
 	for _, p := range onpremProfiles {
 		nodesForProfile := allocatedNodes[index : index+p.Count]
-		framework.RunAgentCommand(p.Command, nodesForProfile...)
+		tc.RunAgentCommand(p.Command, nodesForProfile...)
 		index = index + p.Count
 	}
 
@@ -178,7 +189,7 @@ func (i *Installer) IsCreateSiteStep() bool {
 
 // IsInProgressStep checks if installer is in progress
 func (i *Installer) IsInProgressStep() bool {
-	log.Infof("checking if installation is in progress")
+	log.Infof("checking for in-progress installation")
 	count, _ := i.page.FindByClass("grv-installer-progres-indicator").Count()
 	return count != 0
 }
@@ -191,21 +202,21 @@ func (i *Installer) IsRequirementsReviewStep() bool {
 
 // IsWarningVisible checks if installer has any warnings visible
 func (i *Installer) IsWarningVisible() bool {
-	log.Infof("checking if warning icon is present")
+	log.Infof("checking for visible warning icons")
 	count, _ := i.page.Find(".grv-installer-attemp-message .--warning").Count()
 	return count != 0
 }
 
 // IsInstallCompleted checks if install operation has been completed
 func (i *Installer) IsInstallCompleted() bool {
-	log.Infof("checking if installation is completed")
+	log.Infof("checking for completed installation")
 	count, _ := i.page.Find(".grv-installer-progress-result .fa-check").Count()
 	return count != 0
 }
 
 // IsInstallFailed checks if install operation failed
 func (i *Installer) IsInstallFailed() bool {
-	log.Infof("checking if installation is failed")
+	log.Infof("checking for failed installation")
 	count, _ := i.page.Find(".grv-installer-progress-result .fa-exclamation-triangle").Count()
 	return count != 0
 }
@@ -252,16 +263,16 @@ func (i *Installer) SelectFlavorByLabel(label string) int {
 			return getServerCountFromSelectedProfile(i.page)
 		}
 	}
-	framework.Failf("no flavor matches the specified label %q", label)
+	runtime.Failf("no flavor matches the specified label %q", label)
 	return 0 // unreachable
 }
 
 // WaitForCompletion waits for ongoing install operation to be completed
-func (i *Installer) WaitForCompletion() {
+func (i *Installer) WaitForCompletion(timeout time.Duration) {
 	Expect(i.IsInProgressStep()).To(BeTrue(), "should be in progress")
 	installTimeout := defaults.InstallTimeout
-	if framework.TestContext.Extensions.InstallTimeout != 0 {
-		installTimeout = framework.TestContext.Extensions.InstallTimeout.Duration()
+	if timeout != 0 {
+		installTimeout = timeout
 	}
 	Eventually(func() bool {
 		return i.IsInstallCompleted() || i.IsInstallFailed()
@@ -285,8 +296,9 @@ func (i *Installer) hasIssues() bool {
 	return i.IsWarningVisible() || utils.HasValidationErrors(i.page)
 }
 
-func (i *Installer) navigateTo(URL string) {
-	Expect(i.page.Navigate(URL)).To(Succeed())
+func (i *Installer) navigateTo(url string) {
+	utils.ParseURL(url, "should be a valid URL to open a page")
+	Expect(i.page.Navigate(url)).To(Succeed())
 	Eventually(func() bool {
 		return utils.IsInstaller(i.page) || utils.IsErrorPage(i.page)
 	}, defaults.AppLoadTimeout).Should(BeTrue())

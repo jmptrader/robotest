@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/robotest/e2e/framework"
+	"github.com/gravitational/robotest/e2e/runtime"
 	"github.com/gravitational/robotest/e2e/uimodel/agent"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
 	"github.com/gravitational/robotest/e2e/uimodel/utils"
+	"github.com/gravitational/robotest/infra"
 
 	log "github.com/Sirupsen/logrus"
 	. "github.com/onsi/gomega"
@@ -27,6 +28,14 @@ type SiteServer struct {
 	Profile     string `json:"Profile"`
 	Hostname    string `json:"Hostname"`
 	InstaceType string
+}
+
+// SiteServer is cluster server
+type AddAWSServerForm struct {
+	AccessKey    string
+	SecretKey    string
+	Profile      string
+	InstanceType string
 }
 
 // GetSiteServers returns this cluster servers
@@ -71,15 +80,15 @@ func (p *ServerPage) GetAgentServers() []agent.AgentServer {
 }
 
 // AddOnPremServer adds onprem servers
-func (p *ServerPage) AddOnPremServer() SiteServer {
+func (p *ServerPage) AddOnPremServer(tc *runtime.TContext, profile string) SiteServer {
 	log.Infof("trying to add onprem server")
 	page := p.site.page
-	config := framework.TestContext.Onprem
+
 	Expect(page.FindByClass("grv-site-servers-provisioner-add-existing").Click()).
 		To(Succeed(), "should click on Add Existing button")
 
 	utils.PauseForComponentJs()
-	p.selectOnPremProfile(config.ExpandProfile)
+	p.selectOnPremProfile(profile)
 	utils.PauseForComponentJs()
 
 	Expect(page.Find(".grv-site-servers-provisioner-content .btn-primary").Click()).
@@ -92,15 +101,15 @@ func (p *ServerPage) AddOnPremServer() SiteServer {
 	agentCommand, _ := element.Text()
 	Expect(agentCommand).NotTo(BeEmpty(), "command must be defined")
 
-	nodes, err := framework.Cluster.Provisioner().NodePool().Allocate(1)
+	provisioner := tc.GetInfra().Provisioner()
+	nodes, err := provisioner.NodePool().Allocate(1)
 	Expect(err).NotTo(HaveOccurred(), "should allocate a new node")
-	framework.RunAgentCommand(agentCommand, nodes[0])
+	tc.RunAgentCommand(agentCommand, nodes[0])
 
 	Eventually(p.GetAgentServers, defaults.AgentServerTimeout).Should(HaveLen(1), "should wait for the agent server")
-	provisioner := framework.Cluster.Provisioner()
-	ctx := framework.TestContext
+
 	// TODO: store private IPs for terraform in state to avoid this check
-	if ctx.Provisioner != "terraform" {
+	if provisioner.Type() != infra.ProvisionerTypeTerraform {
 		agentServers := p.GetAgentServers()
 		for _, s := range agentServers {
 			s.SetIPByInfra(provisioner)
@@ -113,9 +122,8 @@ func (p *ServerPage) AddOnPremServer() SiteServer {
 }
 
 // AddAWSServer adds aws server
-func (p *ServerPage) AddAWSServer() SiteServer {
+func (p *ServerPage) AddAWSServer(form AddAWSServerForm) SiteServer {
 	log.Info("trying to add AWS server")
-	config := framework.TestContext.AWS
 	page := p.site.page
 	currentServerItems := p.GetSiteServers()
 	Expect(page.FindByClass("grv-site-servers-provisioner-add-new").Click()).
@@ -124,17 +132,17 @@ func (p *ServerPage) AddAWSServer() SiteServer {
 	utils.PauseForComponentJs()
 
 	log.Info("filling out AWS keys")
-	utils.FillOutAWSKeys(page, config.AccessKey, config.SecretKey)
+	utils.FillOutAWSKeys(page, form.AccessKey, form.SecretKey)
 	Expect(page.Find(".grv-site-servers-provisioner-content .btn-primary").Click()).
 		To(Succeed(), "click on continue")
 	Eventually(page.FindByClass("grv-site-servers-provisioner-new"), defaults.SiteFetchServerProfileTimeout).
 		Should(BeFound(), "should display profile and instance type")
 
 	log.Info("selecting server profile")
-	profileLabel := p.getProfileLabel(config.ExpandProfile)
+	profileLabel := p.getProfileLabel(form.Profile)
 	utils.SetDropdownValue2(page, ".grv-site-servers-provisioner-new-profile", "", profileLabel)
 
-	instanceType := config.ExpandAWSInstanceType
+	instanceType := form.InstanceType
 	if instanceType == "" {
 		instanceType = p.getFirstAvailableAWSInstanceType()
 	}

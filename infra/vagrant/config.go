@@ -19,6 +19,7 @@ func (r *Config) Validate() error {
 
 type Config struct {
 	infra.Config
+	StateDir string
 	// ScriptPath is the path to the Vagrantfile for provisioning
 	ScriptPath string `json:"script_path"`
 	// InstallerURL is a path to the installer

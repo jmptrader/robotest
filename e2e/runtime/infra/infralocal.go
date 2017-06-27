@@ -12,16 +12,87 @@ import (
 	"regexp"
 	"strings"
 
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/robotest/lib/loc"
+	"github.com/cloudflare/cfssl/log"
+	"github.com/gravitational/gravity/lib/loc"
+	framework "github.com/gravitational/robotest/infra"
 	"github.com/gravitational/robotest/lib/wait"
 	"github.com/gravitational/trace"
-
-	log "github.com/Sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
-func startWizard(provisioner Provisioner, installer Node) (cluster *wizardCluster, err error) {
+var (
+	reInstallerURL = regexp.MustCompile("(?m:^OPEN THIS IN BROWSER: (.+)$)")
+	reInstallerIP  = regexp.MustCompile(`(\d+).\s+(\d+.\d+.\d+.\d+)`)
+)
+
+type localInfra struct {
+	name         string
+	opsCenterURL string
+	wizardURL    string
+	tarballPath  string
+	provisioner  framework.Provisioner
+	session      *ssh.Session
+	application  loc.Locator
+}
+
+func (r *localInfra) GetName() InfraName {
+	return InfraNameLocal
+}
+
+func (r *localInfra) GetOpsCenterURL() string {
+	return r.opsCenterURL
+}
+
+func (r *localInfra) SetOpsCenterURL(url string) {
+	r.opsCenterURL = url
+}
+func (r *localInfra) GetWizardURL() string {
+	return r.wizardURL
+}
+
+func (r *localInfra) GetDisplayName() string {
+	return r.name
+}
+
+func (r *localInfra) Provisioner() framework.Provisioner {
+	return r.provisioner
+}
+
+func (r *localInfra) Close() error {
+	if r.session != nil {
+		return r.session.Close()
+	}
+
+	return nil
+}
+
+func (r *localInfra) Destroy() error {
+	if r.provisioner != nil {
+		return r.provisioner.Destroy(context.TODO())
+	}
+
+	return nil
+}
+
+func (r *localInfra) Init() error {
+	withInstaller := r.tarballPath != ""
+	installerNode, err := r.provisioner.Create(context.TODO(), withInstaller)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if withInstaller {
+		err = r.startWizard(installerNode)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+	}
+
+	return nil
+}
+
+func (r *localInfra) startWizard(installer framework.Node) (err error) {
 	var session *ssh.Session
 	err = wait.Retry(context.TODO(), func() error {
 		session, err = installer.Connect()
@@ -31,7 +102,7 @@ func startWizard(provisioner Provisioner, installer Node) (cluster *wizardCluste
 		return trace.Wrap(err)
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer func() {
 		if err == nil {
@@ -46,14 +117,14 @@ func startWizard(provisioner Provisioner, installer Node) (cluster *wizardCluste
 	var stdin io.WriteCloser
 	stdin, err = session.StdinPipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer stdin.Close()
 
 	var stdout io.Reader
 	stdout, err = session.StdoutPipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	reader, writer := io.Pipe()
@@ -75,7 +146,7 @@ func startWizard(provisioner Provisioner, installer Node) (cluster *wizardCluste
 	var stderr io.Reader
 	stderr, err = session.StderrPipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	go func() {
 		_, err := io.Copy(os.Stderr, stderr)
@@ -86,27 +157,27 @@ func startWizard(provisioner Provisioner, installer Node) (cluster *wizardCluste
 
 	// launch the installer
 	log.Debugf("starting installer...")
-	err = provisioner.StartInstall(session)
+	err = r.provisioner.StartInstall(session)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	var installerURL *url.URL
+	var wizardURL *url.URL
 	log.Debugf("configuring wizard...")
-	installerURL, err = configureWizard(reader, stdin, provisioner, installer)
+	wizardURL, err = configureWizard(reader, stdin, r.provisioner, installer)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	if installerURL == nil {
-		err = trace.NotFound("failed to fetch installer URL. Check installer output for details.")
-		return nil, err
+	if wizardURL == nil {
+		err = trace.NotFound("failed to fetch wizard URL. Check installer output for details.")
+		return err
 	}
 
 	var application *loc.Locator
-	application, err = extractPackage(*installerURL)
+	application, err = extractPackage(*wizardURL)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Discard all stdout content after the necessary wizard details have been obtained
@@ -115,15 +186,15 @@ func startWizard(provisioner Provisioner, installer Node) (cluster *wizardCluste
 	}()
 
 	// TODO: make sure that all io.Copy goroutines shutdown in Close
-	return &wizardCluster{
-		provisioner:  provisioner,
-		application:  *application,
-		installerURL: *installerURL,
-		session:      session,
-	}, nil
+
+	r.application = *application
+	r.wizardURL = wizardURL.String()
+	r.session = session
+
+	return nil
 }
 
-func configureWizard(stdout io.Reader, stdin io.Writer, provisioner Provisioner, installerNode Node) (installerURL *url.URL, err error) {
+func configureWizard(stdout io.Reader, stdin io.Writer, provisioner framework.Provisioner, installerNode framework.Node) (wizardURL *url.URL, err error) {
 	s := bufio.NewScanner(stdout)
 	var state scannerState = emptyState
 	var addrs []string
@@ -163,7 +234,7 @@ L:
 					return nil, trace.Wrap(err, "failed to confirm network interface")
 				}
 			case strings.HasPrefix(line, "OPEN THIS IN BROWSER"):
-				installerURL, err = extractInstallerURL(line, installerNode.Addr())
+				wizardURL, err = extractInstallerURL(line, installerNode.Addr())
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -173,7 +244,7 @@ L:
 			}
 		}
 	}
-	return installerURL, nil
+	return wizardURL, nil
 }
 
 func extractPackage(installerURL url.URL) (application *loc.Locator, err error) {
@@ -185,7 +256,7 @@ func extractPackage(installerURL url.URL) (application *loc.Locator, err error) 
 	}
 	repository, name, version := fields[0], fields[1], fields[2]
 
-	return loc.NewLocator(repository, name, version), nil
+	return loc.NewLocator(repository, name, version)
 }
 
 func extractInstallerURL(input, installerIP string) (installerURL *url.URL, err error) {
@@ -217,41 +288,4 @@ type scannerState byte
 const (
 	emptyState             = 0
 	readingInterfacesState = iota
-)
-
-func (r *wizardCluster) Close() error {
-	return r.session.Close()
-}
-
-func (r *wizardCluster) Destroy() error {
-	return r.provisioner.Destroy(context.TODO())
-}
-
-func (r *wizardCluster) OpsCenterURL() string {
-	url := r.installerURL
-	url.RawQuery = ""
-	url.Path = ""
-	return url.String()
-}
-
-func (r *wizardCluster) Provisioner() Provisioner {
-	return r.provisioner
-}
-
-func (r *wizardCluster) Config() Config {
-	return r.config
-}
-
-// wizardCluster implements Infra
-type wizardCluster struct {
-	config       Config
-	provisioner  Provisioner
-	session      *ssh.Session
-	installerURL url.URL
-	application  loc.Locator
-}
-
-var (
-	reInstallerURL = regexp.MustCompile("(?m:^OPEN THIS IN BROWSER: (.+)$)")
-	reInstallerIP  = regexp.MustCompile(`(\d+).\s+(\d+.\d+.\d+.\d+)`)
 )

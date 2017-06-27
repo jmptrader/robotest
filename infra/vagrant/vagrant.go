@@ -24,35 +24,31 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-func New(stateDir string, config Config) (*vagrant, error) {
+func New(config Config) (*vagrant, error) {
 	return &vagrant{
 		Entry: log.WithFields(log.Fields{
 			constants.FieldProvisioner: "vagrant",
 			constants.FieldCluster:     config.ClusterName,
 		}),
-		stateDir: stateDir,
+		stateDir: config.StateDir,
 		// will be reset in Create
 		pool:   infra.NewNodePool(nil, nil),
 		Config: config,
 	}, nil
 }
 
-func NewFromState(config Config, stateConfig infra.ProvisionerState) (*vagrant, error) {
-	v := &vagrant{
-		Entry: log.WithFields(log.Fields{
-			constants.FieldProvisioner: "vagrant",
-			constants.FieldCluster:     config.ClusterName,
-		}),
-		stateDir:    stateConfig.Dir,
-		installerIP: stateConfig.InstallerAddr,
-		Config:      config,
-	}
-	nodes := make([]infra.Node, 0, len(stateConfig.Nodes))
-	for _, n := range stateConfig.Nodes {
+func (r *vagrant) UpdateWithState(state infra.ProvisionerState) {
+	r.stateDir = state.Dir
+	r.installerIP = state.InstallerAddr
+	nodes := make([]infra.Node, 0, len(state.Nodes))
+	for _, n := range state.Nodes {
 		nodes = append(nodes, &node{addrIP: n.Addr, identityFile: n.KeyPath})
 	}
-	v.pool = infra.NewNodePool(nodes, stateConfig.Allocated)
-	return v, nil
+	r.pool = infra.NewNodePool(nodes, state.Allocated)
+}
+
+func (r *vagrant) Type() infra.ProvisionerType {
+	return infra.ProvisionerTypeVagrant
 }
 
 func (r *vagrant) Create(ctx context.Context, withInstaller bool) (installer infra.Node, err error) {

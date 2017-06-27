@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/gravitational/log"
-	"github.com/gravitational/robotest/e2e/framework"
+	"github.com/gravitational/robotest/e2e/runtime/configs"
 	"github.com/gravitational/robotest/e2e/uimodel/defaults"
 	"github.com/gravitational/robotest/e2e/uimodel/utils"
 	"github.com/gravitational/trace"
@@ -85,12 +85,11 @@ func (u *User) Signout() {
 }
 
 // EnsureUserAt navigates to given URL and ensures that a user is logged in
-func EnsureUserAt(page *web.Page, URL string) {
+func EnsureUserAt(page *web.Page, URL string, login configs.Login) {
 	log.Infof("ensuring a logged in user at %s", URL)
 	Expect(page.Navigate(URL)).To(Succeed())
 	if utils.IsFound(page, ".grv-user-login") {
 		log.Infof("handling login")
-		login := framework.TestContext.Login
 		user := CreateUser(page, login.Username, login.Password)
 		switch login.AuthProvider {
 		case WithEmail, WithNoProvider:

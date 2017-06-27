@@ -32,7 +32,7 @@ const (
 	awsCloud   = "aws"
 )
 
-func New(stateDir string, config Config) (*terraform, error) {
+func New(config Config) (*terraform, error) {
 	user, keypath := config.SSHConfig()
 
 	return &terraform{
@@ -41,7 +41,7 @@ func New(stateDir string, config Config) (*terraform, error) {
 			constants.FieldCluster:     config.ClusterName,
 		}),
 		Config:   config,
-		stateDir: stateDir,
+		stateDir: config.StateDir,
 		// pool will be reset in Create
 		pool: infra.NewNodePool(nil, nil),
 
@@ -50,26 +50,8 @@ func New(stateDir string, config Config) (*terraform, error) {
 	}, nil
 }
 
-func NewFromState(config Config, stateConfig infra.ProvisionerState) (*terraform, error) {
-	t := &terraform{
-		Entry: log.WithFields(log.Fields{
-			constants.FieldProvisioner: "terraform",
-			constants.FieldCluster:     config.ClusterName,
-		}),
-		Config:      config,
-		stateDir:    stateConfig.Dir,
-		installerIP: stateConfig.InstallerAddr,
-	}
-
-	t.sshUser, t.sshKeyPath = config.SSHConfig()
-
-	nodes := make([]infra.Node, 0, len(stateConfig.Nodes))
-	for _, n := range stateConfig.Nodes {
-		nodes = append(nodes, &node{publicIP: n.Addr, owner: t})
-	}
-	t.pool = infra.NewNodePool(nodes, stateConfig.Allocated)
-
-	return t, nil
+func (r *terraform) Type() infra.ProvisionerType {
+	return infra.ProvisionerTypeTerraform
 }
 
 func (r *terraform) Create(ctx context.Context, withInstaller bool) (installer infra.Node, err error) {
@@ -260,6 +242,17 @@ func (r *terraform) State() infra.ProvisionerState {
 func (r *terraform) Write(p []byte) (int, error) {
 	fmt.Fprint(os.Stderr, string(p))
 	return len(p), nil
+}
+
+func (r *terraform) UpdateWithState(state infra.ProvisionerState) {
+	r.stateDir = state.Dir
+	r.installerIP = state.InstallerAddr
+
+	nodes := make([]infra.Node, 0, len(state.Nodes))
+	for _, n := range state.Nodes {
+		nodes = append(nodes, &node{publicIP: n.Addr, owner: r})
+	}
+	r.pool = infra.NewNodePool(nodes, state.Allocated)
 }
 
 func (r *terraform) boot(ctx context.Context) (output string, err error) {
