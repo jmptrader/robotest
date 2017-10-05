@@ -20,6 +20,9 @@ function get_docker_device {
 
 touch /var/lib/bootstrap_started
 
+# disable Hyper-V host time sync 
+echo vmbus_12 > /sys/bus/vmbus/drivers/hv_util/unbind
+
 systemctl stop dnsmasq
 systemctl disable dnsmasq
 
