@@ -110,7 +110,7 @@ func RunAndParse(ctx context.Context, client *ssh.Client, log logrus.FieldLogger
 		case err = <-errCh:
 			if exitErr, isExitErr := err.(*ssh.ExitError); isExitErr {
 				err = trace.Wrap(exitErr)
-				log.WithError(err).Debugf("%s : %s", cmd, exitErr.Error())
+				log.WithError(err).Debugf("%s: %s", cmd, exitErr.Error())
 				return exitErr.ExitStatus(), err
 			}
 			if err != nil {

@@ -429,29 +429,35 @@ func (g *gravity) RunInPlanet(ctx context.Context, cmd string, args ...string) (
 func evaluateStatus(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) func() error {
 	return func() error {
 		var response string
-		cmd := fmt.Sprintf(`cd %[1]s && (\
-		./gravity status --operation-id=%[2]s -q --output=json || \
-		./gravity status --operation-id=%[2]s -q)`, dir, operationID)
+		cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q --output=json`, dir, operationID)
 		_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, sshutils.ParseAsString(&response))
 		if err != nil {
+			if strings.Contains(response, "unknown long flag") {
+				return evaluateText(ctx, dir, operationID, client, log)
+			}
+
 			return wait.Continue(cmd)
 		}
 
-		response = strings.TrimSpace(response)
-		switch {
-		case strings.HasPrefix(response, "{"):
-			return fromJSON(cmd, response)
-		default:
-			if strings.Contains(response, "complete") {
-				return nil
-			}
-			if strings.Contains(response, "fail") {
-				return wait.Abort(trace.Errorf("%s: response=%s, err=%v", cmd, response, err))
-			}
-		}
+		return fromJSON(cmd, response)
+	}
+}
 
+func evaluateText(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) error {
+	var response string
+	cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q`, dir, operationID)
+	_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, sshutils.ParseAsString(&response))
+	if err != nil {
 		return wait.Continue(cmd)
 	}
+
+	if strings.Contains(response, "complete") {
+		return nil
+	}
+	if strings.Contains(response, "fail") {
+		return wait.Abort(trace.Errorf("%s: response=%s", cmd, response))
+	}
+	return wait.Continue(cmd)
 }
 
 func fromJSON(cmd, response string) error {
