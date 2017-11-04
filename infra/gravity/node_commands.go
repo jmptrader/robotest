@@ -408,23 +408,7 @@ func (g *gravity) runOp(ctx context.Context, command string) error {
 		FieldLogger: g.Logger().WithField("retry-operation", code),
 	}
 
-	err = retry.Do(ctx, func() error {
-		var response string
-		cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q`, g.installDir, code)
-		_, err := sshutils.RunAndParse(ctx, g.Client(), g.Logger(),
-			cmd, nil, sshutils.ParseAsString(&response))
-		if err != nil {
-			return wait.Continue(cmd)
-		}
-		if strings.Contains(response, "complete") {
-			return nil
-		}
-		if strings.Contains(response, "fail") {
-			return wait.Abort(trace.Errorf("%s: response=%, err=%v", cmd, response, err))
-		}
-
-		return wait.Continue(cmd)
-	})
+	err = retry.Do(ctx, evaluateStatus(ctx, g.installDir, code, g.Client(), g.Logger()))
 	return trace.Wrap(err)
 }
 
@@ -440,4 +424,98 @@ func (g *gravity) RunInPlanet(ctx context.Context, cmd string, args ...string) (
 	}
 
 	return out, nil
+}
+
+func evaluateStatus(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) func() error {
+	return func() error {
+		var response string
+		cmd := fmt.Sprintf(`cd %[1]s && (\
+		./gravity status --operation-id=%[2]s -q --output=json || \
+		./gravity status --operation-id=%[2]s -q)`, dir, operationID)
+		_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, sshutils.ParseAsString(&response))
+		if err != nil {
+			return wait.Continue(cmd)
+		}
+
+		response = strings.TrimSpace(response)
+		switch {
+		case strings.HasPrefix(response, "{"):
+			return fromJSON(cmd, response)
+		default:
+			if strings.Contains(response, "complete") {
+				return nil
+			}
+			if strings.Contains(response, "fail") {
+				return wait.Abort(trace.Errorf("%s: response=%s, err=%v", cmd, response, err))
+			}
+		}
+
+		return wait.Continue(cmd)
+	}
+}
+
+func fromJSON(cmd, response string) error {
+	var clusterStatus clusterStatus
+	err := json.Unmarshal([]byte(response), &clusterStatus)
+	if err != nil {
+		return wait.Continue(err.Error())
+	}
+
+	if clusterStatus.Operation == nil {
+		return wait.Continue(cmd)
+	}
+
+	switch {
+	case clusterStatus.Operation.isFailed():
+		return wait.Abort(trace.Errorf("%s: response=%s", cmd, response))
+	case clusterStatus.Operation.isCompleted():
+		return nil
+	}
+	return wait.Continue(cmd)
+}
+
+// clusterStatus encapsulates collected cluster status information
+type clusterStatus struct {
+	// State describes the cluster state
+	State string `json:"state"`
+	// Reason specifies the reason for the state
+	Reason string `json:"reason,omitempty"`
+	// Domain provides the name of the cluster domain
+	Domain string `json:"domain"`
+	// Operation describes a cluster operation.
+	// This can either refer to the last or a specific operation
+	Operation *clusterOperation `json:"operation,omitempty"`
+}
+
+func (r clusterOperation) isFailed() bool {
+	return r.State == "failed"
+}
+
+func (r clusterOperation) isCompleted() bool {
+	return r.State == "completed"
+}
+
+// clusterOperation describes a cluster operation.
+// This can either refer to the last or a specific operation
+type clusterOperation struct {
+	// Type of the operation
+	Type string `json:"type"`
+	// ID of the operation
+	ID string `json:"id"`
+	// State of the operation (completed, in progress, failed etc)
+	State string `json:"state"`
+	// Created specifies the time the operation was created
+	Created time.Time `json:"created"`
+	// Progress describes the progress of an operation
+	Progress clusterOperationProgress `json:"progress"`
+}
+
+// clusterOperationProgress describes the progress of an operation
+type clusterOperationProgress struct {
+	// Message provides the free text associated with this entry
+	Message string `json:"message"`
+	// Completion specifies the progress value in percent (0..100)
+	Completion int `json:"completion"`
+	// Created specifies the time the progress entry was created
+	Created time.Time `json:"created"`
 }
