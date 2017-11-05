@@ -191,7 +191,7 @@ func (s *testSuite) wrap(fn TestFunc, cfg ProvisionerConfig, param interface{}) 
 			if r := recover(); r != nil {
 				cx.updateStatus(TestStatusPaniced)
 				cx.Logger().WithFields(logrus.Fields{
-					"stack": debug.Stack(),
+					"stack": string(debug.Stack()),
 					"where": r}).Error("PANIC")
 				return
 			}

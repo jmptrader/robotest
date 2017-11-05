@@ -397,7 +397,23 @@ func (g *gravity) runOp(ctx context.Context, command string) error {
 		FieldLogger: g.Logger().WithField("retry-operation", code),
 	}
 
-	err = retry.Do(ctx, checkStatus(ctx, g.installDir, code, g.Client(), g.Logger()))
+	err = retry.Do(ctx, func() error {
+		var response string
+		cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q`, g.installDir, code)
+		_, err := sshutils.RunAndParse(ctx, g.Client(), g.Logger(),
+			cmd, nil, sshutils.ParseAsString(&response))
+		if err != nil {
+			return wait.Continue(cmd)
+		}
+		switch strings.TrimSpace(response) {
+		case "complete":
+			return nil
+		case "failed", "there is no operation in progress":
+			return wait.Abort(trace.Errorf("%s: response=%s", cmd, response))
+		}
+
+		return wait.Continue(cmd)
+	})
 	return trace.Wrap(err)
 }
 
@@ -413,30 +429,6 @@ func (g *gravity) RunInPlanet(ctx context.Context, cmd string, args ...string) (
 	}
 
 	return out, nil
-}
-
-func checkStatus(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) func() error {
-	return func() error {
-		var status ClusterStatus
-		cmd := fmt.Sprintf(`cd %s && /tmp/gravity_status.sh ./gravity --operation-id=%s -q`, dir, operationID)
-		_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, parseStatus(&status))
-		if err != nil {
-			log.Debugf("cmd %s failed: %v", cmd, err)
-			return wait.Continue(cmd)
-		}
-
-		if status.Operation == nil {
-			return wait.Continue(cmd)
-		}
-
-		switch {
-		case status.Operation.isFailed():
-			return wait.Abort(trace.Errorf("%s: status=%v", cmd, status))
-		case status.Operation.isCompleted():
-			return nil
-		}
-		return wait.Continue(cmd)
-	}
 }
 
 // ClusterStatus encapsulates collected cluster status information
