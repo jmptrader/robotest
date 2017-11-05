@@ -425,6 +425,10 @@ func checkStatus(ctx context.Context, dir, operationID string, client *ssh.Clien
 			return wait.Continue(cmd)
 		}
 
+		if status.Operation == nil {
+			return wait.Continue(cmd)
+		}
+
 		switch {
 		case status.Operation.isFailed():
 			return wait.Abort(trace.Errorf("%s: status=%v", cmd, status))

@@ -75,7 +75,7 @@ func populateStatus(key, value string, status *ClusterStatus) error {
 		status.Token.Token = value
 	case "Application":
 		status.App.Name = value
-	case "Application Status":
+	case "Status", "Application Status":
 		status.Status = value
 	default:
 	}
