@@ -15,10 +15,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// i.e. "Status: active"
-var rStatusKV = regexp.MustCompile(`^(?P<key>[\w\s]+)\:\s*(?P<val>[\w\d\_\-\.]+),*.*`)
-var rStatusNodeIP = regexp.MustCompile(`^[\s\w\-\d\*]+\((?P<ip>[\d\.]+)\).*`)
-
 // parseStatus interprets output of `gravity status` as either text or JSON
 func parseStatus(status *ClusterStatus) sshutils.OutputParseFn {
 	return func(r io.Reader) error {
@@ -102,7 +98,7 @@ func ParseDDOutput(output string) (uint64, error) {
 	// 1073741824 bytes (1.1 GB) copied, 4.52455 s, 237 MB/s
 	// 1073741824 bytes (1,1 GB, 1,0 GiB) copied, 4,53701 s, 237 MB/s
 	testResults := lines[2]
-	match := speedRe.FindStringSubmatch(testResults)
+	match := rSpeed.FindStringSubmatch(testResults)
 	if len(match) != 2 {
 		return 0, trace.BadParameter("failed to match speed value (e.g. 237 MB/s) in %q", testResults)
 	}
@@ -142,4 +138,11 @@ func hasJSONPrefix(buf []byte) bool {
 	return bytes.HasPrefix(trim, jsonPrefix)
 }
 
-var speedRe = regexp.MustCompile(`(\d+(?:[.,]\d+)?) \w+/s$`)
+// rStatusKV matches key/value pairs - i.e. "Status: active"
+var rStatusKV = regexp.MustCompile(`^(?P<key>[\w\s]+)\:\s*(?P<val>[\w\d\_\-\.]+),*.*`)
+
+// rStatusNodeIP matches a node's IP address
+var rStatusNodeIP = regexp.MustCompile(`^[\s\w\-\d\*]+\((?P<ip>[\d\.]+)\).*`)
+
+// rSpeed matches the value of a speed gauge from the output of `dd`
+var rSpeed = regexp.MustCompile(`(\d+(?:[.,]\d+)?) \w+/s$`)

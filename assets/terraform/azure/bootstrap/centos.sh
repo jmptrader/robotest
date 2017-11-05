@@ -19,21 +19,24 @@ function die {
 # specifies the first version capable of outputting status in JSON
 readonly base_version=4.44.0
 
-# ver1 >= ver2
-function version_gte {
+# ver1 > ver2
+function version_gt {
   local usage="\$FUNCNAME ver1 ver2"
   local ver1=\${1:?\$usage}
-  if [ "\$ver1" != "\$base_version" ]; then
-    test "\$(printf '%s\n' "\$@" | sort -V | head -n 1)" != "\$ver1";
-  fi
+  test "\$(printf '%s\n' "\$@" | sort -V | head -n 1)" != "\$ver1";
 }
 
 readonly help="gravity_status <gravity binary> <arg>..."
 readonly gravity=\${1:?\$help}
 shift
 readonly bin_version=\$(\$gravity version | head -1 | sed -e 's/version\:\s\+//' | egrep -o '^([0-9]+)\.([0-9]+)\.([0-9]+)')
-if version_gte \$bin_version \$base_version; then
-  \$gravity status --output=json "\$@"
+if version_gt \$bin_version \$base_version; then
+  args=()
+  for param in "\$@"; do
+    # ignore quiet parameter as versions following base_version properly handle quiet mode - e.g. suppress output
+    [[ ("\$param" != "--quiet") && ("\$param" != "-q") ]] && args+=("\$param")
+  done
+  \$gravity status --output=json "\${args[@]}"
 else
   \$gravity status "\$@"
 fi

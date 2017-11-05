@@ -399,20 +399,23 @@ func (g *gravity) runOp(ctx context.Context, command string) error {
 
 	err = retry.Do(ctx, func() error {
 		var response string
-		cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q`, g.installDir, code)
+		cmd := fmt.Sprintf(`cd %s && /tmp/gravity_status.sh ./gravity --operation-id=%s --quiet`, g.installDir, code)
 		_, err := sshutils.RunAndParse(ctx, g.Client(), g.Logger(),
 			cmd, nil, sshutils.ParseAsString(&response))
 		if err != nil {
 			return wait.Continue(cmd)
 		}
-		switch strings.TrimSpace(response) {
-		case "complete":
+
+		status := strings.TrimSpace(response)
+		switch status {
+		case opStatusCompleted:
 			return nil
-		case "failed", "there is no operation in progress":
-			return wait.Abort(trace.Errorf("%s: response=%s", cmd, response))
+		case opStatusFailed, opStatusNoOperation:
+			return wait.Abort(trace.Errorf("%s: status=%q", cmd, status))
+		default:
+			return trace.BadParameter("unknown operation status: %q", status)
 		}
 
-		return wait.Continue(cmd)
 	})
 	return trace.Wrap(err)
 }
@@ -508,3 +511,9 @@ type ClusterServer struct {
 	// FailedProbes lists all failed probes if the node is not healthy
 	FailedProbes []string `json:"failed_probes,omitempty"`
 }
+
+const (
+	opStatusCompleted   = "completed"
+	opStatusFailed      = "failed"
+	opStatusNoOperation = "there is no operation in progress"
+)
