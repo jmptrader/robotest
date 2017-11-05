@@ -29,8 +29,8 @@ type Gravity interface {
 	SetInstaller(ctx context.Context, installerUrl string, subdir string) error
 	// Install operates on initial master node
 	Install(ctx context.Context, param InstallParam) error
-	// Status retrieves status
-	Status(ctx context.Context) (*GravityStatus, error)
+	// Status retrieves cluster status
+	Status(ctx context.Context) (*ClusterStatus, error)
 	// OfflineUpdate tries to upgrade application version
 	OfflineUpdate(ctx context.Context, installerUrl string) error
 	// Join asks to join existing cluster (or installation in progress)
@@ -105,17 +105,6 @@ type JoinCmd struct {
 	Role string
 	// StateDir is where all gravity data will be stored on the joining node
 	StateDir string
-}
-
-// GravityStatus is serialized form of `gravity status` CLI.
-type GravityStatus struct {
-	Application string
-	Cluster     string
-	Status      string
-	// Token is secure token which prevents rogue nodes from joining the cluster during installation
-	Token string `validation:"required"`
-	// Nodes defines nodes the cluster observes
-	Nodes []string
 }
 
 type gravity struct {
@@ -217,9 +206,9 @@ var installCmdTemplate = template.Must(
 `))
 
 // Status queries cluster status
-func (g *gravity) Status(ctx context.Context) (*GravityStatus, error) {
-	cmd := fmt.Sprintf("cd %s && sudo ./gravity status --system-log-file=./telekube-system.log", g.installDir)
-	status := GravityStatus{}
+func (g *gravity) Status(ctx context.Context) (*ClusterStatus, error) {
+	cmd := fmt.Sprintf("cd %s && sudo /tmp/gravity_status.sh ./gravity --system-log-file=./telekube-system.log", g.installDir)
+	var status ClusterStatus
 	exit, err := sshutils.RunAndParse(ctx, g.Client(), g.Logger(), cmd, nil, parseStatus(&status))
 
 	if err != nil {
@@ -408,7 +397,7 @@ func (g *gravity) runOp(ctx context.Context, command string) error {
 		FieldLogger: g.Logger().WithField("retry-operation", code),
 	}
 
-	err = retry.Do(ctx, evaluateStatus(ctx, g.installDir, code, g.Client(), g.Logger()))
+	err = retry.Do(ctx, checkStatus(ctx, g.installDir, code, g.Client(), g.Logger()))
 	return trace.Wrap(err)
 }
 
@@ -426,84 +415,72 @@ func (g *gravity) RunInPlanet(ctx context.Context, cmd string, args ...string) (
 	return out, nil
 }
 
-func evaluateStatus(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) func() error {
+func checkStatus(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) func() error {
 	return func() error {
-		var response string
-		cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q --output=json`, dir, operationID)
-		_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, sshutils.ParseAsString(&response))
+		var status ClusterStatus
+		cmd := fmt.Sprintf(`cd %s && /tmp/gravity_status.sh ./gravity --operation-id=%s -q`, dir, operationID)
+		_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, parseStatus(&status))
 		if err != nil {
-			if strings.Contains(response, "unknown long flag") {
-				return evaluateText(ctx, dir, operationID, client, log)
-			}
-
+			log.Debugf("cmd %s failed: %v", cmd, err)
 			return wait.Continue(cmd)
 		}
 
-		return fromJSON(cmd, response)
-	}
-}
-
-func evaluateText(ctx context.Context, dir, operationID string, client *ssh.Client, log logrus.FieldLogger) error {
-	var response string
-	cmd := fmt.Sprintf(`cd %s && ./gravity status --operation-id=%s -q`, dir, operationID)
-	_, err := sshutils.RunAndParse(ctx, client, log, cmd, nil, sshutils.ParseAsString(&response))
-	if err != nil {
+		switch {
+		case status.Operation.isFailed():
+			return wait.Abort(trace.Errorf("%s: status=%v", cmd, status))
+		case status.Operation.isCompleted():
+			return nil
+		}
 		return wait.Continue(cmd)
 	}
-
-	if strings.Contains(response, "complete") {
-		return nil
-	}
-	if strings.Contains(response, "fail") {
-		return wait.Abort(trace.Errorf("%s: response=%s", cmd, response))
-	}
-	return wait.Continue(cmd)
 }
 
-func fromJSON(cmd, response string) error {
-	var clusterStatus clusterStatus
-	err := json.Unmarshal([]byte(response), &clusterStatus)
-	if err != nil {
-		return wait.Continue(err.Error())
-	}
-
-	if clusterStatus.Operation == nil {
-		return wait.Continue(cmd)
-	}
-
-	switch {
-	case clusterStatus.Operation.isFailed():
-		return wait.Abort(trace.Errorf("%s: response=%s", cmd, response))
-	case clusterStatus.Operation.isCompleted():
-		return nil
-	}
-	return wait.Continue(cmd)
-}
-
-// clusterStatus encapsulates collected cluster status information
-type clusterStatus struct {
-	// State describes the cluster state
-	State string `json:"state"`
+// ClusterStatus encapsulates collected cluster status information
+type ClusterStatus struct {
+	// App references the installed application
+	App App `json:"application"`
+	// Status describes the cluster status
+	Status string `json:"state"`
 	// Reason specifies the reason for the state
 	Reason string `json:"reason,omitempty"`
-	// Domain provides the name of the cluster domain
-	Domain string `json:"domain"`
+	// Token provides the name of the cluster domain
+	Token `json:",inline"`
+	// Name provides the name of the cluster domain
+	Name string `json:"domain"`
 	// Operation describes a cluster operation.
 	// This can either refer to the last or a specific operation
-	Operation *clusterOperation `json:"operation,omitempty"`
+	Operation *ClusterOperation `json:"operation,omitempty"`
+	// Nodes lists status of each individual cluster node
+	Nodes []ClusterServer `json:"nodes"`
 }
 
-func (r clusterOperation) isFailed() bool {
+// App describes the installed application
+type App struct {
+	// Repository specifies the name of the repository
+	Repository string `json:"repository"`
+	// Name specifies the name of the application package
+	Name string `json:"name"`
+	// Version specifies the package version
+	Version string `json:"version"`
+}
+
+// Token describes a join token
+type Token struct {
+	// Token specifies the token value
+	Token string `json:"token"`
+}
+
+func (r ClusterOperation) isFailed() bool {
 	return r.State == "failed"
 }
 
-func (r clusterOperation) isCompleted() bool {
+func (r ClusterOperation) isCompleted() bool {
 	return r.State == "completed"
 }
 
-// clusterOperation describes a cluster operation.
+// ClusterOperation describes a cluster operation.
 // This can either refer to the last or a specific operation
-type clusterOperation struct {
+type ClusterOperation struct {
 	// Type of the operation
 	Type string `json:"type"`
 	// ID of the operation
@@ -513,15 +490,25 @@ type clusterOperation struct {
 	// Created specifies the time the operation was created
 	Created time.Time `json:"created"`
 	// Progress describes the progress of an operation
-	Progress clusterOperationProgress `json:"progress"`
+	Progress ClusterOperationProgress `json:"progress"`
 }
 
-// clusterOperationProgress describes the progress of an operation
-type clusterOperationProgress struct {
+// ClusterOperationProgress describes the progress of an operation
+type ClusterOperationProgress struct {
 	// Message provides the free text associated with this entry
 	Message string `json:"message"`
 	// Completion specifies the progress value in percent (0..100)
 	Completion int `json:"completion"`
 	// Created specifies the time the progress entry was created
 	Created time.Time `json:"created"`
+}
+
+// ClusterServer describes the status of the cluster node
+type ClusterServer struct {
+	// AdvertiseIP specifies the advertise IP address
+	AdvertiseIP string `json:"advertise_ip"`
+	// Status describes the node's status
+	Status string `json:"status"`
+	// FailedProbes lists all failed probes if the node is not healthy
+	FailedProbes []string `json:"failed_probes,omitempty"`
 }

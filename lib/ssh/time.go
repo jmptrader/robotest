@@ -93,8 +93,9 @@ func timeInRange(values []interface{}) bool {
 }
 
 func parseTime(ts *float64) OutputParseFn {
-	return func(r *bufio.Reader) error {
-		line, err := r.ReadString('\n')
+	return func(r io.Reader) error {
+		br := bufio.NewReader(r)
+		line, err := br.ReadString('\n')
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -104,7 +105,7 @@ func parseTime(ts *float64) OutputParseFn {
 			return trace.Wrap(err, line)
 		}
 
-		io.Copy(ioutil.Discard, r)
+		io.Copy(ioutil.Discard, br)
 		return nil
 	}
 }

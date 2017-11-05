@@ -22,7 +22,7 @@ func (c *TestContext) Expand(current, extra []Gravity, p InstallParam) error {
 	joinAddr := master.Node().PrivateAddr()
 	status, err := master.Status(ctx)
 	if err != nil {
-		return trace.Wrap(err, "query status from [%v]", master)
+		return trace.Wrap(err, "failed to query status from [%v]", master)
 	}
 
 	ctx, cancel = context.WithTimeout(c.parent, withDuration(c.timeouts.Install, len(extra)))
@@ -31,7 +31,7 @@ func (c *TestContext) Expand(current, extra []Gravity, p InstallParam) error {
 	for _, node := range extra {
 		err = node.Join(ctx, JoinCmd{
 			PeerAddr: joinAddr,
-			Token:    status.Token,
+			Token:    status.Token.Token,
 			Role:     p.Role,
 			StateDir: p.StateDir,
 		})

@@ -2,10 +2,13 @@ package gravity
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"io"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	sshutils "github.com/gravitational/robotest/lib/ssh"
 
@@ -13,48 +16,66 @@ import (
 )
 
 // i.e. "Status: active"
-var rStatusKV = regexp.MustCompile(`^(?P<key>[\w\s]+)\:\s*(?P<val>[\w\d\_\-]+),*.*`)
-var rStatusNodeIp = regexp.MustCompile(`^[\s\w\-\d]+\((?P<ip>[\d\.]+)\).*`)
+var rStatusKV = regexp.MustCompile(`^(?P<key>[\w\s]+)\:\s*(?P<val>[\w\d\_\-\.]+),*.*`)
+var rStatusNodeIP = regexp.MustCompile(`^[\s\w\-\d\*]+\((?P<ip>[\d\.]+)\).*`)
 
-// parse `gravity status`
-func parseStatus(status *GravityStatus) sshutils.OutputParseFn {
-	return func(r *bufio.Reader) error {
-		for {
-			line, err := r.ReadString('\n')
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				return trace.Wrap(err)
-			}
+// parseStatus interprets output of `gravity status` as either text or JSON
+func parseStatus(status *ClusterStatus) sshutils.OutputParseFn {
+	return func(r io.Reader) error {
+		br, isJSON := guessJSONStream(r, 1024)
 
-			vars := rStatusKV.FindStringSubmatch(line)
-			if len(vars) == 3 {
-				populateStatus(vars[1], vars[2], status)
-				continue
-			}
-
-			vars = rStatusNodeIp.FindStringSubmatch(line)
-			if len(vars) == 2 {
-				status.Nodes = append(status.Nodes, vars[1])
-				continue
-			}
-
+		if isJSON {
+			return fromJSON(br, status)
+		} else {
+			return fromText(br, status)
 		}
-
-		return nil
 	}
 }
 
-func populateStatus(key, value string, status *GravityStatus) error {
+func fromJSON(r io.Reader, status *ClusterStatus) error {
+	d := json.NewDecoder(r)
+	if err := d.Decode(&status); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func fromText(r *bufio.Reader, status *ClusterStatus) error {
+	for {
+		line, err := r.ReadString('\n')
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		vars := rStatusKV.FindStringSubmatch(line)
+		if len(vars) == 3 {
+			populateStatus(strings.TrimSpace(vars[1]), strings.TrimSpace(vars[2]), status)
+			continue
+		}
+
+		vars = rStatusNodeIP.FindStringSubmatch(line)
+		if len(vars) == 2 {
+			status.Nodes = append(status.Nodes, ClusterServer{AdvertiseIP: strings.TrimSpace(vars[1])})
+			continue
+		}
+
+	}
+
+	return nil
+}
+
+func populateStatus(key, value string, status *ClusterStatus) error {
 	switch key {
 	case "Cluster":
-		status.Cluster = value
+		status.Name = value
 	case "Join token":
-		status.Token = value
+		status.Token.Token = value
 	case "Application":
-		status.Application = value
-	case "Status":
+		status.App.Name = value
+	case "Application Status":
 		status.Status = value
 	default:
 	}
@@ -104,6 +125,21 @@ func ParseDDOutput(output string) (uint64, error) {
 	default:
 		return 0, trace.BadParameter("expected units (one of kB/s, MB/s, GB/s) but got %q", units)
 	}
+}
+
+func guessJSONStream(r io.Reader, size int) (*bufio.Reader, bool) {
+	buffer := bufio.NewReaderSize(r, size)
+	b, _ := buffer.Peek(size)
+	return buffer, hasJSONPrefix(b)
+}
+
+var jsonPrefix = []byte("{")
+
+// hasJSONPrefix returns true if the provided buffer appears to start with
+// a JSON open brace.
+func hasJSONPrefix(buf []byte) bool {
+	trim := bytes.TrimLeftFunc(buf, unicode.IsSpace)
+	return bytes.HasPrefix(trim, jsonPrefix)
 }
 
 var speedRe = regexp.MustCompile(`(\d+(?:[.,]\d+)?) \w+/s$`)

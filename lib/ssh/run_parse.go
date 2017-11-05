@@ -15,7 +15,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type OutputParseFn func(r *bufio.Reader) error
+type OutputParseFn func(r io.Reader) error
 
 const (
 	exitStatusUndefined = -1
@@ -71,8 +71,7 @@ func RunAndParse(ctx context.Context, client *ssh.Client, log logrus.FieldLogger
 	if parse != nil {
 		expectErrs++
 		go func() {
-			err := parse(bufio.NewReader(
-				&readLogger{log.WithField("stream", "stdout"), stdout}))
+			err := parse(&readLogger{log.WithField("stream", "stdout"), stdout})
 			errCh <- trace.Wrap(err)
 		}()
 	}
@@ -123,13 +122,13 @@ func RunAndParse(ctx context.Context, client *ssh.Client, log logrus.FieldLogger
 	return 0, nil
 }
 
-func ParseDiscard(r *bufio.Reader) error {
+func ParseDiscard(r io.Reader) error {
 	io.Copy(ioutil.Discard, r)
 	return nil
 }
 
 func ParseAsString(out *string) OutputParseFn {
-	return func(r *bufio.Reader) error {
+	return func(r io.Reader) error {
 		b, err := ioutil.ReadAll(r)
 		if err != nil {
 			return trace.Wrap(err)
