@@ -2,6 +2,7 @@ package gravity
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -16,8 +17,8 @@ import (
 // getTeleClusterStatus will attempt to get the cluster status from an ops center
 // for now, it's just looking for the specific line of output from tele get clusters
 // but could parse the entire yaml structure if imported from gravity
-func getTeleClusterStatus(clusterName string) (string, error) {
-	out, err := exec.Command("tele", "get", "clusters", clusterName, "--format", "yaml").Output()
+func getTeleClusterStatus(ctx context.Context, clusterName string) (string, error) {
+	out, err := exec.CommandContext(ctx, "tele", "get", "clusters", clusterName, "--format", "yaml").Output()
 	if err != nil {
 		logrus.WithError(err).Error("unable to parse tele get clusters: ", string(out))
 		return "", trace.WrapWithMessage(err, string(out))
@@ -127,7 +128,7 @@ func (c ProvisionerConfig) DestroyOpsFn(tc *TestContext, clusterName string) fun
 
 		log.Info("destroying cluster")
 
-		out, err := exec.Command("tele", "rm", "cluster", clusterName).CombinedOutput()
+		out, err := exec.CommandContext(tc.Context(), "tele", "rm", "cluster", clusterName).CombinedOutput()
 		if err != nil {
 			return err
 		}
@@ -143,7 +144,7 @@ func (c ProvisionerConfig) DestroyOpsFn(tc *TestContext, clusterName string) fun
 				return trace.LimitExceeded("clusterDestroy timeout exceeded")
 			case <-tick:
 				// check provisioning status
-				status, err := getTeleClusterStatus(clusterName)
+				status, err := getTeleClusterStatus(tc.Context(), clusterName)
 				if err != nil && trace.IsNotFound(err) {
 					// de-provisioning completed
 					return nil

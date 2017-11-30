@@ -48,4 +48,7 @@ const (
 
 	// MaxRetriesPerTest
 	MaxRetriesPerTest = 3
+
+	// AutoScaleTimeout
+	AutoScaleTimeout = 5 * time.Minute
 )
