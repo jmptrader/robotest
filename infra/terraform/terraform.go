@@ -12,9 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/robotest/infra"
+	"github.com/gravitational/robotest/infra/providers/azure"
 	"github.com/gravitational/robotest/lib/constants"
 	sshutils "github.com/gravitational/robotest/lib/ssh"
 	"github.com/gravitational/robotest/lib/system"
@@ -22,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -30,6 +30,7 @@ const (
 
 	azureCloud = "azure"
 	awsCloud   = "aws"
+	gceCloud   = "gce"
 )
 
 func New(stateDir string, config Config) (*terraform, error) {
@@ -78,7 +79,7 @@ func (r *terraform) Create(ctx context.Context, withInstaller bool) (installer i
 		return nil, trace.Wrap(err)
 	}
 	if nfiles == 0 {
-		return nil, trace.Errorf("No Terraform configs at %s", r.ScriptPath)
+		return nil, trace.NotFound("no terraform configuration at %v", r.ScriptPath)
 	}
 
 	// sometimes terraform cannot receive all required params
@@ -89,7 +90,7 @@ func (r *terraform) Create(ctx context.Context, withInstaller bool) (installer i
 			if withInstaller {
 				nodes := r.pool.Nodes()
 				if len(nodes) == 0 { // should not happen, and doesn't make sense to retry
-					return nil, trace.Errorf("Zero nodes were allocated")
+					return nil, trace.NotFound("no nodes were allocated")
 				}
 				if r.installerIP == "" {
 					r.installerIP = nodes[0].Addr()
@@ -100,14 +101,14 @@ func (r *terraform) Create(ctx context.Context, withInstaller bool) (installer i
 		}
 
 		if !trace.IsRetryError(err) {
-			return nil, trace.Wrap(err, "Terraform failed")
+			return nil, trace.Wrap(err, "terraform failed")
 		}
-		log.WithError(err).Warningf("terraform experienced transient error, will retry in %v",
+		log.WithError(err).Warningf("Terraform experienced transient error, will retry in %v.",
 			terraformRepeatAfter)
 
 		select {
 		case <-ctx.Done():
-			return nil, trace.Wrap(err, "Terraform creation timed out")
+			return nil, trace.Wrap(ctx.Err(), "terraform creation timed out")
 		case <-time.After(terraformRepeatAfter):
 		}
 	}
@@ -165,17 +166,17 @@ func (r *terraform) terraform(ctx context.Context) (err error) {
 	}
 	r.pool = infra.NewNodePool(nodes, nil)
 
-	r.Debugf("cluster: %#v", nodes)
+	r.Debugf("Cluster: %#v.", nodes)
 	return nil
 }
 
 func (r *terraform) destroyAzure(ctx context.Context) error {
 	cfg := r.Config.Azure
 	if cfg == nil {
-		return trace.Errorf("azure config is nil")
+		return trace.BadParameter("azure config is nil")
 	}
 
-	token, err := AzureGetAuthToken(ctx, AzureAuthParam{
+	token, err := azure.GetAuthToken(ctx, AzureAuthParam{
 		ClientId:     cfg.ClientId,
 		ClientSecret: cfg.ClientSecret,
 		TenantId:     cfg.TenantId})
@@ -183,7 +184,7 @@ func (r *terraform) destroyAzure(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	err = AzureRemoveResourceGroup(ctx, token, cfg.SubscriptionId, cfg.ResourceGroup)
+	err = azure.RemoveResourceGroup(ctx, token, cfg.SubscriptionId, cfg.ResourceGroup)
 	return trace.Wrap(err)
 }
 
@@ -196,7 +197,7 @@ func (r *terraform) Destroy(ctx context.Context) error {
 			return trace.Wrap(err, "azureDestroy %v", err)
 		}
 		err = os.RemoveAll(r.stateDir)
-		return trace.Wrap(err, "cleaning up %s: %v", r.stateDir, err)
+		return trace.Wrap(err, "failed to clean up %v: %v", r.stateDir, err)
 	}
 
 	varsPath := filepath.Join(r.stateDir, tfVarsFile)
@@ -339,8 +340,10 @@ func (r *terraform) saveVarsJSON(varFile string) error {
 		config = r.Config.AWS
 	case azureCloud:
 		config = r.Config.Azure
+	case gceCloud:
+		config = r.Config.GCE
 	default:
-		return trace.Errorf("No configuration for cloud %s", r.Config.CloudProvider)
+		return trace.BadParameter("invalid cloud provider: %v", r.Config.CloudProvider)
 	}
 
 	f, err := os.OpenFile(varFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 440)
