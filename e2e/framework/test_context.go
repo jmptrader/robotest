@@ -9,16 +9,19 @@ import (
 	"os"
 	"time"
 
-	"github.com/gravitational/configure"
 	"github.com/gravitational/robotest/e2e/framework/defaults"
 	"github.com/gravitational/robotest/infra"
+	"github.com/gravitational/robotest/infra/providers/aws"
+	"github.com/gravitational/robotest/infra/providers/azure"
+	"github.com/gravitational/robotest/infra/providers/gce"
 	"github.com/gravitational/robotest/infra/terraform"
 	"github.com/gravitational/robotest/infra/vagrant"
 	"github.com/gravitational/robotest/lib/debug"
 	"github.com/gravitational/robotest/lib/loc"
-	"github.com/gravitational/trace"
 
 	"github.com/go-yaml/yaml"
+	"github.com/gravitational/configure"
+	"github.com/gravitational/trace"
 	"github.com/kr/pretty"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
@@ -201,11 +204,11 @@ type TestContextType struct {
 	FlavorLabel string `json:"flavor_label" yaml:"flavor_label" `
 
 	// AWS defines the AWS-specific test configuration
-	AWS *infra.AWSConfig `json:"aws" yaml:"aws"`
+	AWS *aws.Config `json:"aws" yaml:"aws"`
 	// Azure defines Azure Cloud specific parameters
-	Azure *infra.AzureConfig `json:"azure" yaml:"azure"`
+	Azure *azure.Config `json:"azure" yaml:"azure"`
 	// GCE defines Google Compute Engine specific parameters
-	GCE *infra.GoogleConfig `json:"gce" yaml:"gce"`
+	GCE *gce.Config `json:"gce" yaml:"gce"`
 	// Onprem defines the test configuration for bare metal tests
 	Onprem *OnpremConfig `json:"onprem" yaml:"onprem"`
 
