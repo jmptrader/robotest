@@ -214,7 +214,7 @@ func (g *gravity) Install(ctx context.Context, param InstallParam) error {
 var installCmdTemplate = template.Must(
 	template.New("gravity_install").Parse(`
 		source /tmp/gravity_environment >/dev/null 2>&1 || true; \
-		cd {{.InstallDir}} && ./gravity version && sudo ./gravity install --debug \
+		cd {{.InstallDir}} && sudo ./gravity version && sudo ./gravity install --debug \
 		--advertise-addr={{.PrivateAddr}} --token={{.Token}} --flavor={{.Flavor}} \
 		--docker-device=${{.EnvDockerDevice}} \
 		{{if .StorageDriver}}--storage-driver={{.StorageDriver}}{{end}} \
