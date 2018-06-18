@@ -276,6 +276,7 @@ var joinCmdTemplate = template.Must(
 		cd {{.InstallDir}} && sudo ./gravity join {{.PeerAddr}} \
 		--advertise-addr={{.PrivateAddr}} --token={{.Token}} --debug \
 		--role={{.Role}} --docker-device=${{.EnvDockerDevice}} \
+		--cloud-provider={{.CloudProvider}} \
 		--system-log-file=./telekube-system.log --state-dir={{.StateDir}}`))
 
 // Leave makes given node leave the cluster
