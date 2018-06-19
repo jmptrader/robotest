@@ -29,6 +29,8 @@ type Gravity interface {
 	SetInstaller(ctx context.Context, installerUrl string, subdir string) error
 	// ExecScript transfers and executes script with predefined parameters
 	ExecScript(ctx context.Context, scriptUrl string, args []string) error
+	// GetInstallCmd returns the full `install` command along with all the needed options
+	GetInstallCmd(param InstallParam) (string, error)
 	// Install operates on initial master node
 	Install(ctx context.Context, param InstallParam) error
 	// Status retrieves status
@@ -181,8 +183,8 @@ func (g *gravity) Client() *ssh.Client {
 	return g.ssh
 }
 
-// Install runs gravity install with params
-func (g *gravity) Install(ctx context.Context, param InstallParam) error {
+// GetInstallCmd returns the full `install` command along with all the needed options
+func (g *gravity) GetInstallCmd(param InstallParam) (string, error) {
 	// cmd specify additional configuration for the install command
 	// collected from defaults and/or computed values
 	type cmd struct {
@@ -202,10 +204,20 @@ func (g *gravity) Install(ctx context.Context, param InstallParam) error {
 		InstallParam:    param,
 	})
 	if err != nil {
-		return trace.Wrap(err, buf.String())
+		return "", trace.Wrap(err, buf.String())
 	}
 
-	err = sshutils.Run(ctx, g.Client(), g.Logger(), buf.String(), map[string]string{
+	return buf.String(), nil
+}
+
+// Install runs gravity install with params
+func (g *gravity) Install(ctx context.Context, param InstallParam) error {
+	installCmd, err := g.GetInstallCmd(param)
+	if err != nil {
+		return trace.Wrap(err, installCmd)
+	}
+
+	err = sshutils.Run(ctx, g.Client(), g.Logger(), installCmd, map[string]string{
 		constants.EnvDockerDevice: g.param.dockerDevice,
 	})
 	return trace.Wrap(err, param)
@@ -215,11 +227,14 @@ var installCmdTemplate = template.Must(
 	template.New("gravity_install").Parse(`
 		source /tmp/gravity_environment >/dev/null 2>&1 || true; \
 		cd {{.InstallDir}} && sudo ./gravity version && sudo ./gravity install --debug \
-		--advertise-addr={{.PrivateAddr}} --token={{.Token}} --flavor={{.Flavor}} \
+		--advertise-addr={{.PrivateAddr}} \
+		--token={{.Token}} \
+		--flavor={{.Flavor}} \
 		--docker-device=${{.EnvDockerDevice}} \
-		{{if .StorageDriver}}--storage-driver={{.StorageDriver}}{{end}} \
+        --state-dir={{.StateDir}} \
 		--system-log-file=./telekube-system.log \
-		--cloud-provider={{.CloudProvider}} --state-dir={{.StateDir}} \
+		{{if .StorageDriver}}--storage-driver={{.StorageDriver}}{{end}} \
+		{{if .CloudProvider}}--cloud-provider={{.CloudProvider}}{{end}} \
 		{{if .Cluster}}--cluster={{.Cluster}}{{end}}
 `))
 

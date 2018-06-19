@@ -16,10 +16,11 @@ import (
 
 	"github.com/gravitational/robotest/infra"
 	"github.com/gravitational/robotest/lib/constants"
-	sshutils "github.com/gravitational/robotest/lib/ssh"
 	"github.com/gravitational/robotest/lib/system"
 
+	sshutils "github.com/gravitational/robotest/lib/ssh"
 	"github.com/gravitational/trace"
+
 	"github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
@@ -239,7 +240,11 @@ func (r *terraform) Client(addrIP string) (*ssh.Client, error) {
 }
 
 func (r *terraform) StartInstall(session *ssh.Session) error {
-	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, "./install")
+	installCmd, err := "./install", nil //gravity.GetInstallCmd(param)
+	if err != nil {
+		return trace.Wrap(err, "InstallCmd compile issues")
+	}
+	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, installCmd)
 	if err != nil {
 		return trace.Wrap(err, "Installer")
 	}
@@ -247,7 +252,11 @@ func (r *terraform) StartInstall(session *ssh.Session) error {
 }
 
 func (r *terraform) UploadUpdate(session *ssh.Session) error {
-	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, "./upload")
+	uploadCmd, err := "./upload", nil //gravity.GetInstallCmd(param)
+	if err != nil {
+		return trace.Wrap(err, "UploadCmd creation issues")
+	}
+	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, uploadCmd)
 	if err != nil {
 		return trace.Wrap(err, "Updater")
 	}
