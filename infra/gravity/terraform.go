@@ -256,7 +256,7 @@ func runTerraformOnce(baseContext context.Context, baseConfig ProvisionerConfig,
 	// as they'll pick up incomplete state from cloud and proceed
 	// only second chance is provided
 	//
-	// TODO: this seems to require more thorough testing, and same approach applied to Destory
+	// TODO: this seems to require more thorough testing, and same approach applied to Destroy
 	//
 
 	p, err := terraform.New(filepath.Join(baseConfig.StateDir, "tf"), params.tf)
