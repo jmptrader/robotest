@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"text/template"
 
 	"golang.org/x/crypto/ssh"
 
@@ -240,22 +241,38 @@ func (r *terraform) Client(addrIP string) (*ssh.Client, error) {
 }
 
 func (r *terraform) StartInstall(session *ssh.Session) error {
-	installCmd, err := "./install", nil //gravity.GetInstallCmd(param)
-	if err != nil {
-		return trace.Wrap(err, "InstallCmd compile issues")
+	type opt struct {
+		CloudProvider string
 	}
-	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, installCmd)
+
+	log.Debugf("Terraform CloudProvider: %s\n", r.Config.CloudProvider)
+
+	var buf bytes.Buffer
+	err := installCmdTemplate.Execute(&buf, opt{
+		CloudProvider: _CloudProvider,
+	})
+	if err != nil {
+		return trace.Wrap(err, buf.String())
+	}
+
+	log.Debugf("Running installer with command %s\n", buf.String())
+
+	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, buf.String())
 	if err != nil {
 		return trace.Wrap(err, "Installer")
 	}
 	return session.Start(cmd)
 }
 
+var installCmdTemplate = template.Must(
+	template.New("gravity_wizard").Parse(`
+		sudo ./gravity install --debug \
+		--log-file=./telekube-system.log \
+		{{if .CloudProvider}}--cloud-provider={{.CloudProvider}}{{end}}
+`))
+
 func (r *terraform) UploadUpdate(session *ssh.Session) error {
-	uploadCmd, err := "./upload", nil //gravity.GetInstallCmd(param)
-	if err != nil {
-		return trace.Wrap(err, "UploadCmd creation issues")
-	}
+	uploadCmd := "sudo ./upload"
 	cmd, err := r.makeRemoteCommand(r.Config.InstallerURL, uploadCmd)
 	if err != nil {
 		return trace.Wrap(err, "Updater")
