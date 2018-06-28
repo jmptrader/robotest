@@ -95,7 +95,7 @@ type AzureConfig struct {
 	// https://docs.microsoft.com/en-us/cli/azure/vm#list-sizes
 	VmType string `json:"vm_type" yaml:"vm_type" validate:"required"`
 	// SSHKeyPath specifies the location of the SSH private key to use for remote access
-	SSHKeyPath string `json:"-" yaml:"key_path" validate:"required"`
+	SSHKeyPath string `json:"key_path" yaml:"key_path" validate:"required"`
 	// AuthorizedKeysPath specifies ssh/authorized_keys file to be placed on remote machine
 	AuthorizedKeysPath string `json:"ssh_authorized_keys_path" yaml:"authorized_keys_path" validate:"required"`
 	// SSHUser defines SSH user used to connect to the provisioned machines
@@ -120,7 +120,7 @@ type OpsConfig struct {
 	EC2Region string `json:"region" yaml:"region" validate:"required"`
 	// SSHKeyPath specifies the location of the SSH key to use for remote access.
 	// Mandatory only with terraform provisioner
-	SSHKeyPath string `json:"key_path" yaml:"key_path"`
+	SSHKeyPath string `json:"key_path" yaml:"key_path" validate:"required"`
 	// SSHUser defines SSH user used to connect to the provisioned machines
 	SSHUser string `json:"ssh_user" yaml:"ssh_user" validate:"required"`
 }
