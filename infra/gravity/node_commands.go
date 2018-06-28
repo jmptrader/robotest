@@ -264,7 +264,9 @@ func (g *gravity) Join(ctx context.Context, param JoinCmd) error {
 	// cmd specify additional configuration for the join command
 	// collected from defaults and/or computed values
 	type cmd struct {
-		InstallDir, PrivateAddr, EnvDockerDevice string
+		InstallDir string
+		PrivateAddr string
+		EnvDockerDevice string
 		JoinCmd
 	}
 
