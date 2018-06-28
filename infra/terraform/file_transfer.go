@@ -80,7 +80,7 @@ var remoteCommandTemplate = template.Must(
 		echo Unpacking installer && tar -xvf {{.OutputFile}} -C {{.HomeDir}}/installer && \
 		echo Checking existence of post-downloading installer script and executing it && \
 		if [[ -f {{.PostInstallerScript}} ]]; then sudo bash -x {{.PostInstallerScript}}; fi && \
-		echo Launching command sudo {{.Command}} && cd {{.HomeDir}}/installer && sudo {{.Command}}`))
+		echo "Launching command {{.Command}}" && cd {{.HomeDir}}/installer && bash -lc "{{.Command}}"`))
 
 // remoteCmd specifies configuration for the command that is executed
 // on the installer node
