@@ -5,6 +5,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"gopkg.in/go-playground/validator.v9"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Validate validates the configuration
@@ -21,6 +23,9 @@ func (c *Config) Validate() error {
 
 	hasValidAWSSSH := c.CloudProvider == "aws" && c.AWS != nil && c.AWS.SSHUser != "" && c.AWS.SSHKeyPath != ""
 	hasValidAzureSSH := c.CloudProvider == "azure" && c.Azure != nil && c.Azure.SSHUser != "" && c.Azure.SSHKeyPath != ""
+
+	log.Debugf("HasValidAWSSSH? %s", hasValidAWSSSH)
+	log.Debugf("HasValidAzureSSH? %s", hasValidAzureSSH)
 
 	if (hasValidAWSSSH || hasValidAzureSSH) == false {
 		errors = append(errors,
