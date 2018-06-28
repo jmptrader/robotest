@@ -12,6 +12,8 @@ func (r *Config) Validate() error {
 type Config struct {
 	// ClusterName is the name assigned to the provisioned machines
 	ClusterName string `json:"cluster_name" `
+	// OnPremInstall specifies if the installation is ignoring the Cloud integration using OnPrem "cloud-provider"
+	OnPremInstall bool `json: "onprem_install" yaml:"onprem_install"`
 }
 
 // ProvisionerState defines the state configuration for a cluster

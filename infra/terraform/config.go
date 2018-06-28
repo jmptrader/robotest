@@ -51,6 +51,8 @@ type Config struct {
 
 	// DeployTo defines cloud to deploy to
 	CloudProvider string `validate:"required,eq=aws|eq=azure"`
+	// OnPremInstall specifies if the installation is ignoring the Cloud integration using OnPrem "cloud-provider"
+	OnPremInstall bool `json: "onprem_install" yaml:"onprem_install"`
 	// AWS defines AWS connection parameters
 	AWS *infra.AWSConfig
 	// Azure defines Azure connection parameters

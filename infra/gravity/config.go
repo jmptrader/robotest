@@ -71,6 +71,8 @@ func (drv StorageDriver) Driver() string {
 type ProvisionerConfig struct {
 	// DeployTo defines cloud to deploy to
 	CloudProvider string `yaml:"cloud" validate:"required,eq=aws|eq=azure|eq=ops"`
+	// OnPremInstall specifies if the installation is ignoring the Cloud integration using OnPrem "cloud-provider"
+	OnPremInstall bool `json: "onprem_install" yaml:"onprem_install"`
 	// AWS defines AWS connection parameters
 	AWS *infra.AWSConfig `yaml:"aws"`
 	// Azure defines Azure connection parameters

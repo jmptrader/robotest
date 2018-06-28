@@ -246,6 +246,12 @@ func (r *terraform) StartInstall(session *ssh.Session) error {
 	}
 
 	log.Debugf("Terraform CloudProvider: %s\n", r.Config.CloudProvider)
+	log.Debugf("Terraform OnPremInstall: %s\n", r.Config.OnPremInstall)
+	// CloudProvider is overridden in case the OnPremInstall setting is enabled
+	_CloudProvider := r.Config.CloudProvider
+	if r.Config.OnPremInstall {
+		_CloudProvider = "onprem"
+	}
 
 	var buf bytes.Buffer
 	err := installCmdTemplate.Execute(&buf, opt{
