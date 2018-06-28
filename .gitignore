@@ -23,3 +23,4 @@ wd_suite
 run.sh
 *.sublime-workspace
 tf/
+.idea
