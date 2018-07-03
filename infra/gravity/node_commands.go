@@ -117,8 +117,6 @@ type JoinCmd struct {
 	StateDir string
 	// CloudProvider defines tighter integration with cloud vendor, i.e. use AWS networking on Amazon
 	CloudProvider string `json:"cloud_provider,omitempty"`
-	// OnPremInstall sets the installation type to disable Cloud integration during install
-	OnPremInstall bool `json:"onprem_install" yaml:"onprem_install"`
 }
 
 // GravityStatus is serialized form of `gravity status` CLI.

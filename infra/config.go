@@ -69,6 +69,8 @@ type AWSConfig struct {
 	ExpandAWSInstanceType string `json:"expand_instance_type" yaml:"expand_instance_type"`
 	// ClusterName defines tagging and placement group for resources allocated
 	ClusterName string `json:"cluster_name" yaml:"cluster_name"`
+	// OnPremInstall specifies if the installation is ignoring the Cloud integration using OnPrem "cloud-provider"
+	OnPremInstall bool `json: "onprem_install" yaml:"onprem_install"`
 	// DockerDevice block device for docker data - set to /dev/xvdb
 	DockerDevice string `json:"docker_device" yaml:"docker_device" validate:"required"`
 }
