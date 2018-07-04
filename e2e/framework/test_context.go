@@ -23,6 +23,7 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
 	log "github.com/sirupsen/logrus"
+	"github.com/gravitational/robotest/.glide/cache/src/https-github.com-sirupsen-logrus"
 )
 
 // ConfigureFlags registers common command line flags, parses the command line
@@ -382,6 +383,7 @@ func newContextConfig(configFile string) error {
 	}
 
 	err = yaml.Unmarshal(configBytes, &TestContext)
+	logrus.Debugf("OnPremInstall config TestContext : %s\n", TestContext.OnPremInstall)
 	if err != nil {
 		return trace.Wrap(err, "Error parsing config file")
 	}
@@ -436,8 +438,6 @@ func makeTerraformConfig(infraConfig infra.Config) (config *terraform.Config, er
 		return nil, trace.Errorf("cloud_provider parameter is required for Terraform")
 	}
 
-	log.Debugf("Terraform OnPremInstall: %s\n", TestContext.OnPremInstall)
-
 	config = &terraform.Config{
 		Config:              infraConfig,
 		ScriptPath:          TestContext.Onprem.ScriptPath,
@@ -452,6 +452,9 @@ func makeTerraformConfig(infraConfig infra.Config) (config *terraform.Config, er
 		PostInstallerScript: TestContext.Onprem.PostInstallerScript,
 		VariablesFile:       TestContext.Onprem.VariablesFile,
 	}
+
+	log.Debugf("Terraform CloudProvider: %s\n", TestContext.CloudProvider)
+	log.Debugf("Terraform OnPremInstall: %s\n", TestContext.OnPremInstall)
 
 	err = config.Validate()
 	if err != nil {

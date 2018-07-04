@@ -37,6 +37,7 @@ func (c *TestContext) Expand(current, extra []Gravity, p InstallParam) error {
 			Token:    status.Token,
 			Role:     p.Role,
 			StateDir: p.StateDir,
+			OnPremInstall: p.OnPremInstall,
 		})
 		if err != nil {
 			return trace.Wrap(err, "error joining cluster on node %s: %v", node.String(), err)
