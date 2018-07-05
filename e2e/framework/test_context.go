@@ -162,7 +162,7 @@ type TestContextType struct {
 	// CloudProvider defines cloud to deploy
 	CloudProvider string `json:"cloud_provider" yaml:"cloud_provider" validate:"omitempty,eq=aws|eq=azure"`
 	// OnPremInstall specifies if the installation is ignoring the Cloud integration using OnPrem "cloud-provider"
-	OnPremInstall bool `json: "onprem_install" yaml:"onprem_install"`
+	OnPremInstall bool `json:"onprem_install" yaml:"onprem_install"`
 	// DumpCore specifies a command to collect all installation/operation logs
 	DumpCore bool `json:"-" yaml:"-"`
 	// StateDir specifies the location for test-specific temporary data
