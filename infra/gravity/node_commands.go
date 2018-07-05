@@ -243,6 +243,7 @@ var installCmdTemplate = template.Must(
 	template.New("gravity_install").Parse(`
 		source /tmp/gravity_environment >/dev/null 2>&1 || true; \
 		cd {{.InstallDir}} && sudo ./gravity version && sudo ./gravity install --debug \
+		--wizard \
 		--advertise-addr={{.PrivateAddr}} \
 		--token={{.Token}} \
 		--flavor={{.Flavor}} \

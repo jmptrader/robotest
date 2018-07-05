@@ -275,6 +275,7 @@ var installCmdTemplate = template.Must(
 	template.New("gravity_wizard").Parse(`
 		sudo ./gravity install --debug \
 		--log-file=./telekube-system.log \
+		--wizard \
 		{{if .CloudProvider}}--cloud-provider={{.CloudProvider}}{{end}}
 `))
 
