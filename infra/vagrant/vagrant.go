@@ -421,13 +421,13 @@ type domain struct {
 }
 
 const installerCommand = `
-mkdir -p /home/vagrant/installer; \
-tar -xvf /vagrant/installer.tar.gz -C /home/vagrant/installer; \
-/home/vagrant/installer/install`
+mkdir -p /home/vagrant/installer && \
+tar -xvf /vagrant/installer.tar.gz -C /home/vagrant/installer && \
+cd /home/vagrant/installer/ && sudo ./install`
 
 const uploadUpdateCommand = `
-rm -rf /home/vagrant/installer; mkdir -p /home/vagrant/installer; \
-tar -xvf /vagrant/installer.tar.gz -C /home/vagrant/installer; \
-cd /home/vagrant/installer/; sudo ./upload`
+rm -rf /home/vagrant/installer ; mkdir -p /home/vagrant/installer && \
+tar -xvf /vagrant/installer.tar.gz -C /home/vagrant/installer && \
+cd /home/vagrant/installer/ && sudo ./upload`
 
 const installerLogPath = "/home/vagrant/installer/telekube-system.log"
