@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	web "github.com/sclevine/agouti"
 	. "github.com/sclevine/agouti/matchers"
+	"github.com/sirupsen/logrus"
 )
 
 // AgentServer is agent server ui model
@@ -70,8 +71,11 @@ func (a *AgentServer) SetIPByInfra(provisioner infra.Provisioner) {
 	ips := a.GetIPs()
 	var node infra.Node
 	for _, ip := range ips {
+		logrus.Debugf("IPv4 detected: %v", ip)
 		node, _ = provisioner.NodePool().Node(ip)
 		if node != nil {
+			logrus.Debugf("node.PrivateAddr() : %v", node.PrivateAddr())
+			logrus.Debugf("node.Addr() : %v", node.Addr())
 			break
 		}
 	}

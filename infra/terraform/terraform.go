@@ -67,6 +67,7 @@ func NewFromState(config Config, stateConfig infra.ProvisionerState) (*terraform
 
 	nodes := make([]infra.Node, 0, len(stateConfig.Nodes))
 	for _, n := range stateConfig.Nodes {
+		log.Debugf("Adding Node %v", n.Addr)
 		nodes = append(nodes, &node{publicIP: n.Addr, owner: t})
 	}
 	t.pool = infra.NewNodePool(nodes, stateConfig.Allocated)
