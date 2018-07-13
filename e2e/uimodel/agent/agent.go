@@ -72,6 +72,7 @@ func (a *AgentServer) SetIPByInfra(provisioner infra.Provisioner) {
 	var node infra.Node
 	for _, ip := range ips {
 		logrus.Debugf("IPv4 detected: %v", ip)
+		logrus.Debugf("Nodes detected # : %v", len(provisioner.NodePool().Nodes()))
 		node, _ = provisioner.NodePool().Node(ip)
 		if node != nil {
 			logrus.Debugf("node.PrivateAddr() : %v", node.PrivateAddr())
